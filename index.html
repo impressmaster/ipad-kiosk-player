@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>Reproductor</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+    #status { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; background: #000; font: 18px system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+  <video id="player" autoplay muted playsinline webkit-playsinline preload="auto"></video>
+  <div id="status">Cargando contenido…</div>
+  <script>
+    const player = document.querySelector("#player");
+    const status = document.querySelector("#status");
+    let playlist = [];
+    let currentIndex = 0;
+    let playlistVersion = null;
+
+    async function updatePlaylist() {
+      try {
+        const response = await fetch(`playlist.json?t=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("No se pudo cargar la lista");
+        const data = await response.json();
+        player.muted = data.muted !== false;
+        if (data.version !== playlistVersion && Array.isArray(data.videos) && data.videos.length) {
+          playlistVersion = data.version;
+          playlist = data.videos;
+          currentIndex = 0;
+          playCurrent();
+        }
+      } catch (error) {
+        if (!playlist.length) status.textContent = "Esperando contenido…";
+      }
+    }
+
+    function playCurrent() {
+      if (!playlist.length) return;
+      player.src = playlist[currentIndex];
+      player.load();
+      player.play()
+        .then(() => { status.hidden = true; })
+        .catch(() => {
+          status.hidden = false;
+          status.textContent = "Toca la pantalla para comenzar";
+        });
+    }
+
+    player.addEventListener("ended", () => {
+      currentIndex = (currentIndex + 1) % playlist.length;
+      playCurrent();
+    });
+    player.addEventListener("error", () => setTimeout(() => {
+      currentIndex = (currentIndex + 1) % playlist.length;
+      playCurrent();
+    }, 3000));
+    document.body.addEventListener("click", () => player.play().then(() => { status.hidden = true; }));
+
+    updatePlaylist();
+    setInterval(updatePlaylist, 30000);
+  </script>
+</body>
+</html>
